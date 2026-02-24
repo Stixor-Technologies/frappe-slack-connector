@@ -37,10 +37,7 @@ def get_employees_on_leave() -> list:
         filters={
             "from_date": ("<=", current_date),
             "to_date": (">=", current_date),
-            "status": (
-                "in",
-                ["Open", "Approved"],
-            ),
+            "status": "Approved",
         },
         fields=fields,
         order_by="to_date asc",

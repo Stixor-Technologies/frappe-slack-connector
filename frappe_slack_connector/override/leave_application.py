@@ -136,7 +136,7 @@ def send_leave_notification_bg(doc: Document):
         mention_users = frappe.db.get_single_value("Slack Settings", "mention_user")
         mention = f"<@{user_slack}>" if user_slack else doc.employee_name
         day_period = "Full Day"
-        if doc.half_day and doc.half_day_date == frappe.utils.today():
+        if doc.half_day:
             day_period = doc.custom_first_halfsecond_half if custom_fields_exist() else "Half Day"
 
         # if leave date is today and attendance notification is already sent,
@@ -174,7 +174,7 @@ def send_leave_notification_bg(doc: Document):
                     leave_link=get_url_to_form("Leave Application", doc.name),
                     employee_name=mention,
                     leave_type=doc.leave_type,
-                    is_half_day=doc.half_day,
+                    duration=day_period,
                     leave_submission_date=standard_date_fmt(doc.creation),
                     from_date=standard_date_fmt(doc.from_date),
                     to_date=standard_date_fmt(doc.to_date),
@@ -197,7 +197,7 @@ def format_leave_application_blocks(
     leave_submission_date: str,
     from_date: str,
     to_date: str,
-    is_half_day: bool,
+    duration: str = "Full Day",
     reason: str = "",
     employee_link: str = "#",
     leave_link: str = "#",
@@ -250,26 +250,18 @@ def format_leave_application_blocks(
         },
         {
             "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": f"*Reason:*\n>{reason if reason else 'No reason provided'}",
-            },
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Duration:*\n:clock3: {duration}",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Reason:*\n>{reason if reason else 'No reason provided'}",
+                },
+            ],
         },
     ]
-
-    # Add a context menu indicating it is a half day
-    if is_half_day:
-        blocks.append(
-            {
-                "type": "context",
-                "elements": [
-                    {
-                        "type": "mrkdwn",
-                        "text": "Half Day: :white_check_mark:",
-                    }
-                ],
-            }
-        )
 
     blocks.extend(
         [
@@ -307,3 +299,69 @@ def format_leave_application_blocks(
         ]
     )
     return blocks
+
+
+def format_leave_status_blocks(
+    *,
+    leave_id: str,
+    leave_link: str,
+    leave_type: str,
+    from_date: str,
+    to_date: str,
+    duration: str = "Full Day",
+    is_approved: bool,
+) -> list:
+    """
+    Format the blocks for notifying the applicant about leave approval/rejection
+    """
+    if is_approved:
+        header = ":white_check_mark: Leave Request Approved"
+        body = "Your leave request has been *approved*."
+    else:
+        header = ":x: Leave Request Rejected"
+        body = "Your leave request has been *rejected*."
+
+    return [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": header,
+                "emoji": True,
+            },
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": body,
+            },
+        },
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Leave ID:* <{leave_link}|{leave_id}>",
+                }
+            ],
+        },
+        {"type": "divider"},
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*Leave Type:*\n:rocket: {leave_type}"},
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Duration:*\n:clock3: {duration}",
+                },
+            ],
+        },
+        {
+            "type": "section",
+            "fields": [
+                {"type": "mrkdwn", "text": f"*From:*\n:date: {from_date}"},
+                {"type": "mrkdwn", "text": f"*To:*\n:date: {to_date}"},
+            ],
+        },
+    ]
